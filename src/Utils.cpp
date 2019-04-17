@@ -76,11 +76,16 @@ float Utils::cached_t_quantile(int v) {
 
 float Utils::erfinv_approx(float x)
 {
-    float sign = x > 0 ? 1 : -1;
-    float tmp = (1 - x) * (1 + x);
-    float tt1 = 4.330747 + 0.5 * log(tmp);
-    float tt2 = log(tmp) / 0.147;
-    return sign * sqrt(-tt1 + sqrt(tt1 * tt1 - tt2));
+    if (x > 0.99903315)
+        return (614035.1911475 * x - 1226889.97098062) * x + 612857.68056674;
+    else if (x > 0.99067762)
+        return (6164.63329713 * x - 12206.59810334) * x + 6044.41109774;
+    else if (x > 0.94256688)
+        return (149.67945563 * x - 279.0787477) * x + 131.41382087;
+    else if (x > 0.76986066)
+        return (8.36029575 * x - 11.45040811) * x + 4.70872135;
+    else
+        return (0.463621021 * x + 0.745260462) * x;
 }
 
 bool Utils::input_pending() {
