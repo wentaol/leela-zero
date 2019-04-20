@@ -202,16 +202,24 @@ void UCTNode::virtual_loss_undo() {
     m_virtual_loss -= VIRTUAL_LOSS_COUNT;
 }
 
-void UCTNode::update(float eval) {
+void UCTNode::update(float eval, float visitboost) {
+
     // Cache values to avoid race conditions.
     auto old_eval = static_cast<float>(m_blackevals);
     auto old_visits = static_cast<int>(m_visits);
-    auto old_delta = old_visits > 0 ? eval - old_eval / old_visits : 0.0f;
     m_visits++;
-    accumulate_eval(eval);
-    auto new_delta = eval - (old_eval + eval) / (old_visits + 1);
+    auto old_virtualvisits = static_cast<float>(m_virtualvisits);
+    atomic_add(m_virtualvisits, visitboost);
+
+    auto old_delta = old_visits > 0
+            ? eval - old_eval / old_virtualvisits
+            : 0.0f;
+    auto adj_eval = eval * visitboost;
+    accumulate_eval(adj_eval);
+    auto new_delta = eval
+            - (old_eval + adj_eval) / (old_virtualvisits + visitboost);
     // Welford's online algorithm for calculating variance.
-    auto delta = old_delta * new_delta;
+    auto delta = visitboost * old_delta * new_delta;
     atomic_add(m_squared_eval_diff, delta);
 }
 
@@ -239,16 +247,22 @@ void UCTNode::set_policy(float policy) {
 }
 
 float UCTNode::get_eval_variance(float default_var) const {
-    return m_visits > 1 ? m_squared_eval_diff / (m_visits - 1) : default_var;
+    return m_virtualvisits > 1
+            ? m_squared_eval_diff / (m_virtualvisits - 1)
+            : default_var;
 }
 
 int UCTNode::get_visits() const {
     return m_visits;
 }
 
+float UCTNode::get_virtualvisits() const {
+    return m_virtualvisits;
+}
+
 float UCTNode::get_eval_lcb(int color) const {
     // Lower confidence bound of winrate.
-    auto visits = get_visits();
+    auto visits = get_virtualvisits();
     if (visits < 2) {
         // Return large negative value if not enough visits.
         return -1e6f + visits;
@@ -262,7 +276,7 @@ float UCTNode::get_eval_lcb(int color) const {
 }
 
 float UCTNode::get_raw_eval(int tomove, int virtual_loss) const {
-    auto visits = get_visits() + virtual_loss;
+    auto visits = get_virtualvisits() + virtual_loss;
     assert(visits > 0);
     auto blackeval = get_blackevals();
     if (tomove == FastBoard::WHITE) {
@@ -299,23 +313,23 @@ void UCTNode::accumulate_eval(float eval) {
 
 UCTNode* UCTNode::uct_select_child(int color, bool is_root) {
     wait_expanded();
-
     // Count parentvisits manually to avoid issues with transpositions.
-    auto parentvisits = size_t{0};
+    auto parentvisits = 0.0;
     auto max_policy = 0.0f;
     auto max_unvisited_policy = 0.0f;
     for (const auto& child : m_children) {
         if (child.valid()) {
-            parentvisits += child.get_visits();
             max_policy = std::max(max_policy, child.get_policy());
-            if (child.get_visits() == 0) {
+            if (child.get_visits() > 0) {
+                parentvisits += child->get_virtualvisits();
+            } else {
                 max_unvisited_policy = std::max(max_unvisited_policy, child.get_policy());
             }
         }
     }
 
-    const auto numerator = std::sqrt(double(parentvisits) *
-            std::log(cfg_logpuct * double(parentvisits) + cfg_logconst));
+    const auto numerator = std::sqrt(parentvisits *
+            std::log(cfg_logpuct * parentvisits + cfg_logconst));
     const auto policyratio = (max_policy - max_unvisited_policy)
                             / (max_policy + max_unvisited_policy);
     const auto fpu_reduction = (is_root ? cfg_fpu_root_reduction : cfg_fpu_reduction)
@@ -340,7 +354,9 @@ UCTNode* UCTNode::uct_select_child(int color, bool is_root) {
             winrate = child.get_eval(color);
         }
         const auto psa = child.get_policy();
-        const auto denom = 1.0 + child.get_visits();
+        auto denom = 1.0f;
+        if (child.get_visits() > 0)
+            denom += child->get_virtualvisits();
         const auto puct = cfg_puct * psa * (numerator / denom);
         const auto value = winrate + puct;
         assert(value > std::numeric_limits<double>::lowest());

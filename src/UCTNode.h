@@ -74,6 +74,7 @@ public:
     bool active() const;
     int get_move() const;
     int get_visits() const;
+    float get_virtualvisits() const;
     float get_policy() const;
     void set_policy(float policy);
     float get_eval_variance(float default_var = 0.0f) const;
@@ -82,7 +83,7 @@ public:
     float get_net_eval(int tomove) const;
     void virtual_loss();
     void virtual_loss_undo();
-    void update(float eval);
+    void update(float eval, float visitboost);
     float get_eval_lcb(int color) const;
 
     // Defined in UCTNodeRoot.cpp, only to be called on m_root in UCTSearch
@@ -120,6 +121,7 @@ private:
     // UCT
     std::atomic<std::int16_t> m_virtual_loss{0};
     std::atomic<int> m_visits{0};
+    std::atomic<float> m_virtualvisits{0.0};
     // UCT eval
     float m_policy;
     // Original net eval for this node (not children).

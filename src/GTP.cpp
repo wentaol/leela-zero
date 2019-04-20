@@ -89,6 +89,8 @@ float cfg_logconst;
 float cfg_softmax_temp;
 float cfg_fpu_reduction;
 float cfg_fpu_root_reduction;
+float cfg_vb_initial;
+float cfg_vb_decay;
 float cfg_ci_alpha;
 float cfg_lcb_min_visit_ratio;
 std::string cfg_weightsfile;
@@ -345,6 +347,8 @@ void GTP::setup_default_parameters() {
     cfg_logconst = 1.7f;
     cfg_softmax_temp = 1.0f;
     cfg_fpu_reduction = 0.27f;
+    cfg_vb_initial = 11.0;
+    cfg_vb_decay = 0.993;
     // see UCTSearch::should_resign
     cfg_resignpct = -1;
     cfg_noise = false;

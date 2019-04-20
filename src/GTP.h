@@ -114,6 +114,8 @@ extern float cfg_logconst;
 extern float cfg_softmax_temp;
 extern float cfg_fpu_reduction;
 extern float cfg_fpu_root_reduction;
+extern float cfg_vb_initial;
+extern float cfg_vb_decay;
 extern float cfg_ci_alpha;
 extern float cfg_lcb_min_visit_ratio;
 extern std::string cfg_logfile;

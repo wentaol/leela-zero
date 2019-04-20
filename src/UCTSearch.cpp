@@ -246,7 +246,9 @@ SearchResult UCTSearch::play_simulation(GameState & currstate,
                 node->create_children(m_network, m_nodes, currstate, eval,
                                       get_min_psa_ratio());
             if (!had_children && success) {
-                result = SearchResult::from_eval(eval);
+                float visitboost = cfg_vb_initial 
+                    * std::pow(cfg_vb_decay, currstate.m_movenum);
+                result = SearchResult::from_eval(eval, visitboost);
             }
         }
     }
@@ -264,7 +266,7 @@ SearchResult UCTSearch::play_simulation(GameState & currstate,
     }
 
     if (result.valid()) {
-        node->update(result.eval());
+        node->update(result.eval(), result.visitboost());
     }
     node->virtual_loss_undo();
 
@@ -301,9 +303,10 @@ void UCTSearch::dump_stats(FastState & state, UCTNode & parent) {
         tmpstate.play_move(node->get_move());
         auto pv = move + " " + get_pv(tmpstate, *node);
 
-        myprintf("%4s -> %7d (V: %5.2f%%) (LCB: %5.2f%%) (N: %5.2f%%) PV: %s\n",
+        myprintf("%4s -> %7d[%d] (V: %5.2f%%) (LCB: %5.2f%%) (N: %5.2f%%) PV: %s\n",
             move.c_str(),
             node->get_visits(),
+            (int)node->get_virtualvisits(),
             node->get_visits() ? node->get_raw_eval(color)*100.0f : 0.0f,
             std::max(0.0f, node->get_eval_lcb(color) * 100.0f),
             node->get_policy() * 100.0f,
@@ -745,6 +748,8 @@ void UCTSearch::increment_playouts() {
 }
 
 int UCTSearch::think(int color, passflag_t passflag) {
+    myprintf("Using UCB with visit boost initial=%f decay=%f...\n",
+            cfg_vb_initial, cfg_vb_decay);
     // Start counting time for us
     m_rootstate.start_clock(color);
 
