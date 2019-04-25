@@ -666,9 +666,9 @@ void Network::compare_net_outputs(const Netresult& data,
         error += diff * diff;
     }
     const auto diff_pass = data.policy_pass - ref.policy_pass;
-    const auto diff_winrate = data.winrate - ref.winrate;
+    const auto diff_eval = data.eval - ref.eval;
     error += diff_pass * diff_pass;
-    error += diff_winrate * diff_winrate;
+    error += diff_eval * diff_eval;
 
     error = std::sqrt(error);
 
@@ -753,8 +753,8 @@ Network::Netresult Network::get_output(
         assert(symmetry == -1);
         for (auto sym = 0; sym < NUM_SYMMETRIES; ++sym) {
             auto tmpresult = get_output_internal(state, sym);
-            result.winrate +=
-                tmpresult.winrate / static_cast<float>(NUM_SYMMETRIES);
+            result.eval +=
+                tmpresult.eval / static_cast<float>(NUM_SYMMETRIES);
             result.policy_pass +=
                 tmpresult.policy_pass / static_cast<float>(NUM_SYMMETRIES);
 
@@ -787,7 +787,7 @@ Network::Netresult Network::get_output(
     // v2 format (ELF Open Go) returns black value, not stm
     if (m_value_head_not_stm) {
         if (state->board.get_to_move() == FastBoard::WHITE) {
-            result.winrate = 1.0f - result.winrate;
+            result.eval = -result.eval;
         }
     }
 
@@ -836,8 +836,8 @@ Network::Netresult Network::get_output_internal(
     const auto winrate_out =
         innerproduct<VALUE_LAYER, 1, false>(winrate_data, m_ip2_val_w, m_ip2_val_b);
 
-    // Map TanH output range [-1..1] to [0..1] range
-    const auto winrate = (1.0f + std::tanh(winrate_out[0])) / 2.0f;
+    // Sunlight is overrated (no tan...h)
+    const auto eval = winrate_out[0];
 
     Netresult result;
 
@@ -847,7 +847,7 @@ Network::Netresult Network::get_output_internal(
     }
 
     result.policy_pass = outputs[NUM_INTERSECTIONS];
-    result.winrate = winrate;
+    result.eval = eval;
 
     return result;
 }
@@ -878,7 +878,7 @@ void Network::show_heatmap(const FastState* const state,
     }
     const auto pass_policy = int(result.policy_pass * 1000);
     myprintf("pass: %d\n", pass_policy);
-    myprintf("winrate: %f\n", result.winrate);
+    myprintf("winrate: %f\n", Utils::eval_to_winrate(result.eval));
 
     if (topmoves) {
         std::vector<Network::PolicyVertexPair> moves;

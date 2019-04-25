@@ -57,9 +57,9 @@ public:
         if (board_score > 0.0f) {
             return SearchResult(1.0f);
         } else if (board_score < 0.0f) {
-            return SearchResult(0.0f);
+            return SearchResult(-1.0f);
         } else {
-            return SearchResult(0.5f);
+            return SearchResult(0.0f);
         }
     }
 private:

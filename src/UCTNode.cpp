@@ -83,11 +83,11 @@ bool UCTNode::create_children(Network & network,
         &state, Network::Ensemble::RANDOM_SYMMETRY);
 
     // DCNN returns winrate as side to move
-    const auto stm_eval = raw_netlist.winrate;
+    const auto stm_eval = raw_netlist.eval;
     const auto to_move = state.board.get_to_move();
     // our search functions evaluate from black's point of view
     if (to_move == FastBoard::WHITE) {
-        m_net_eval = 1.0f - stm_eval;
+        m_net_eval = -stm_eval;
     } else {
         m_net_eval = stm_eval;
     }
@@ -116,7 +116,7 @@ bool UCTNode::create_children(Network & network,
 
     // If we're clever, only try passing if we're winning on the
     // net score and on the board count.
-    if (!allow_pass && stm_eval > 0.8f) {
+    if (!allow_pass && stm_eval > 0.69f) {
         const auto relative_score =
             (to_move == FastBoard::BLACK ? 1 : -1) * state.final_score();
         if (relative_score >= 0) {
@@ -270,7 +270,7 @@ float UCTNode::get_raw_eval(int tomove, int virtual_loss) const {
     }
     auto eval = static_cast<float>(blackeval / double(visits));
     if (tomove == FastBoard::WHITE) {
-        eval = 1.0f - eval;
+        eval = -eval;
     }
     return eval;
 }
@@ -284,7 +284,7 @@ float UCTNode::get_eval(int tomove) const {
 
 float UCTNode::get_net_eval(int tomove) const {
     if (tomove == FastBoard::WHITE) {
-        return 1.0f - m_net_eval;
+        return -m_net_eval;
     }
     return m_net_eval;
 }
@@ -330,19 +330,19 @@ UCTNode* UCTNode::uct_select_child(int color, bool is_root) {
             continue;
         }
 
-        auto winrate = fpu_eval;
+        auto eval = fpu_eval;
         if (child.is_inflated() && child->m_expand_state.load() == ExpandState::EXPANDING) {
             // Someone else is expanding this node, never select it
             // if we can avoid so, because we'd block on it.
-            winrate = -1.0f - fpu_reduction;
+            eval = -5.0f - fpu_reduction;
         } else if (child.get_visits() > 0) {
-            winrate = child.get_eval(color);
+            eval = child.get_eval(color);
         }
         const auto psa = child.get_policy();
         const auto childvisits = child.get_visits();
         const auto denom = std::pow(1.0 + childvisits, 1.5);
         const auto puct = cfg_puct * psa * (numerator / denom);
-        const auto value = winrate + puct;
+        const auto value = eval + puct;
         assert(value > std::numeric_limits<double>::lowest());
 
         if (value > best_value) {

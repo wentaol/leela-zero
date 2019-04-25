@@ -82,6 +82,10 @@ float Utils::erfinv_approx(float x) {
     return sign * std::sqrt(-tt1 + std::sqrt(tt1 * tt1 - tt2));
 }
 
+float Utils::eval_to_winrate(float x) {
+    return (1.0f + std::tanh(x)) / 2.0f;
+}
+
 bool Utils::input_pending() {
 #ifdef HAVE_SELECT
     fd_set read_fds;

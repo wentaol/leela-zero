@@ -60,10 +60,12 @@ constexpr int UCTSearch::UNLIMITED_PLAYOUTS;
 class OutputAnalysisData {
 public:
     OutputAnalysisData(const std::string& move, int visits,
-                       float winrate, float policy_prior, std::string pv,
+                       float eval, float policy_prior, std::string pv,
                        float lcb, bool lcb_ratio_exceeded)
-    : m_move(move), m_visits(visits), m_winrate(winrate),
-      m_policy_prior(policy_prior), m_pv(pv), m_lcb(lcb),
+    : m_move(move), m_visits(visits), 
+      m_winrate(Utils::eval_to_winrate(eval)),
+      m_policy_prior(policy_prior), m_pv(pv), 
+      m_lcb(Utils::eval_to_winrate(lcb)),
       m_lcb_ratio_exceeded(lcb_ratio_exceeded) {};
 
     std::string get_info_string(int order) const {
@@ -301,11 +303,14 @@ void UCTSearch::dump_stats(FastState & state, UCTNode & parent) {
         tmpstate.play_move(node->get_move());
         auto pv = move + " " + get_pv(tmpstate, *node);
 
+        auto wr_raw = Utils::eval_to_winrate(node->get_raw_eval(color));
+        auto wr_lcb = Utils::eval_to_winrate(node->get_eval_lcb(color));
+
         myprintf("%4s -> %7d (V: %5.2f%%) (LCB: %5.2f%%) (N: %5.2f%%) PV: %s\n",
             move.c_str(),
             node->get_visits(),
-            node->get_visits() ? node->get_raw_eval(color)*100.0f : 0.0f,
-            std::max(0.0f, node->get_eval_lcb(color) * 100.0f),
+            node->get_visits() ? wr_raw *100.0f : 0.0f,
+            std::max(0.0f, wr_lcb * 100.0f),
             node->get_policy() * 100.0f,
             pv.c_str());
     }
@@ -401,7 +406,7 @@ void UCTSearch::tree_stats(const UCTNode& node) {
     }
 }
 
-bool UCTSearch::should_resign(passflag_t passflag, float besteval) {
+bool UCTSearch::should_resign(passflag_t passflag, float bestwr) {
     if (passflag & UCTSearch::NORESIGN) {
         // resign not allowed
         return false;
@@ -426,7 +431,7 @@ bool UCTSearch::should_resign(passflag_t passflag, float besteval) {
     const auto is_default_cfg_resign = cfg_resignpct < 0;
     const auto resign_threshold =
         0.01f * (is_default_cfg_resign ? 10 : cfg_resignpct);
-    if (besteval > resign_threshold) {
+    if (bestwr > resign_threshold) {
         // eval > cfg_resign
         return false;
     }
@@ -441,7 +446,7 @@ bool UCTSearch::should_resign(passflag_t passflag, float besteval) {
         auto blend_ratio = std::min(1.0f, movenum / (0.6f * num_intersections));
         auto blended_resign_threshold = blend_ratio * resign_threshold
             + (1 - blend_ratio) * handicap_resign_threshold;
-        if (besteval > blended_resign_threshold) {
+        if (bestwr > blended_resign_threshold) {
             // Allow lower eval for white in handicap games
             // where opp may fumble.
             return false;
@@ -477,7 +482,9 @@ int UCTSearch::get_best_move(passflag_t passflag) {
     assert(first_child != nullptr);
 
     auto bestmove = first_child->get_move();
-    auto besteval = first_child->first_visit() ? 0.5f : first_child->get_raw_eval(color);
+    auto bestwr = first_child->first_visit() 
+        ? 0.5f
+        : Utils::eval_to_winrate(first_child->get_raw_eval(color));
 
     // do we want to fiddle with the best move because of the rule set?
     if (passflag & UCTSearch::NOPASS) {
@@ -489,9 +496,9 @@ int UCTSearch::get_best_move(passflag_t passflag) {
                 myprintf("Preferring not to pass.\n");
                 bestmove = nopass->get_move();
                 if (nopass->first_visit()) {
-                    besteval = 1.0f;
+                    bestwr = 1.0f;
                 } else {
-                    besteval = nopass->get_raw_eval(color);
+                    bestwr = Utils::eval_to_winrate(nopass->get_raw_eval(color));
                 }
             } else {
                 myprintf("Pass is the only acceptable move.\n");
@@ -529,9 +536,9 @@ int UCTSearch::get_best_move(passflag_t passflag) {
                     myprintf("Avoiding pass because it loses.\n");
                     bestmove = nopass->get_move();
                     if (nopass->first_visit()) {
-                        besteval = 1.0f;
+                        bestwr = 1.0f;
                     } else {
-                        besteval = nopass->get_raw_eval(color);
+                        bestwr = Utils::eval_to_winrate(nopass->get_raw_eval(color));
                     }
                 } else {
                     myprintf("No alternative to passing.\n");
@@ -543,11 +550,11 @@ int UCTSearch::get_best_move(passflag_t passflag) {
                 // Find a valid non-pass move.
                 const auto nopass = m_root->get_nopass_child(m_rootstate);
                 if (nopass != nullptr && !nopass->first_visit()) {
-                    const auto nopass_eval = nopass->get_raw_eval(color);
+                    const auto nopass_eval = Utils::eval_to_winrate(nopass->get_raw_eval(color));
                     if (nopass_eval > 0.5f) {
                         myprintf("Avoiding pass because there could be a winning alternative.\n");
                         bestmove = nopass->get_move();
-                        besteval = nopass_eval;
+                        bestwr = nopass_eval;
                     }
                 }
                 if (bestmove == FastBoard::PASS) {
@@ -569,7 +576,7 @@ int UCTSearch::get_best_move(passflag_t passflag) {
                 bestmove = FastBoard::PASS;
             } else {
                 myprintf("Passing draws, make it depend on evaluation.\n");
-                if (besteval < 0.5f) {
+                if (bestwr < 0.5f) {
                     bestmove = FastBoard::PASS;
                 }
             }
@@ -578,9 +585,9 @@ int UCTSearch::get_best_move(passflag_t passflag) {
 
     // if we aren't passing, should we consider resigning?
     if (bestmove != FastBoard::PASS) {
-        if (should_resign(passflag, besteval)) {
+        if (should_resign(passflag, bestwr)) {
             myprintf("Eval (%.2f%%) looks bad. Resigning.\n",
-                     100.0f * besteval);
+                     100.0f * bestwr);
             bestmove = FastBoard::RESIGN;
         }
     }
@@ -622,7 +629,8 @@ std::string UCTSearch::get_analysis(int playouts) {
     int color = tempstate.board.get_to_move();
 
     auto pvstring = get_pv(tempstate, *m_root);
-    float winrate = 100.0f * m_root->get_raw_eval(color);
+    float winrate = 100.0f * 
+                Utils::eval_to_winrate(m_root->get_raw_eval(color));
     return str(boost::format("Playouts: %d, Win: %5.2f%%, PV: %s")
         % playouts % winrate % pvstring.c_str());
 }
@@ -673,9 +681,9 @@ size_t UCTSearch::prune_noncontenders(int color, int elapsed_centis, int time_fo
                 visits >= min_required_visits;
             // Avoid pruning moves that could have the best lower confidence
             // bound.
-            const auto high_winrate = visits > 0 ?
+            const auto high_eval = visits > 0 ?
                 node->get_raw_eval(color) >= lcb_max : false;
-            const auto prune_this_node = !(has_enough_visits || high_winrate);
+            const auto prune_this_node = !(has_enough_visits || high_eval);
 
             if (prune) {
                 node->set_active(!prune_this_node);

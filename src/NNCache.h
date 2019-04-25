@@ -54,10 +54,10 @@ public:
         // pass
         float policy_pass;
 
-        // winrate
-        float winrate;
+        // eval (not squashed to (0,1))
+        float eval;
 
-        Netresult() : policy_pass(0.0f), winrate(0.0f) {
+        Netresult() : policy_pass(0.0f), eval(0.0f) {
             policy.fill(0.0f);
         }
     };
