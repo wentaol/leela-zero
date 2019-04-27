@@ -299,7 +299,7 @@ void UCTNode::accumulate_eval(float eval) {
     atomic_add(m_blackevals, double(eval));
 }
 
-UCTNode* UCTNode::uct_select_child(int color, bool is_root) {
+UCTNode* UCTNode::uct_select_child(int color, bool is_root, int movenum) {
     wait_expanded();
 
     // Count parentvisits manually to avoid issues with transpositions.
@@ -315,11 +315,14 @@ UCTNode* UCTNode::uct_select_child(int color, bool is_root) {
             }
         }
     }
-
+    // Models the increase in standard deviation of value net outputs
+    const auto stddev_scaling = std::pow(cfg_stddev_scaling, movenum);
+    
     const auto numerator = parentvisits;
     const auto policyratio = (max_policy - max_unvisited_policy)
                             / (max_policy + max_unvisited_policy);
     const auto fpu_reduction = (is_root ? cfg_fpu_root_reduction : cfg_fpu_reduction)
+                                * stddev_scaling
                                 * Utils::erfinv_approx(policyratio);
     // Estimated eval for unknown nodes = original parent NN eval - reduction
     const auto fpu_eval = get_net_eval(color) - fpu_reduction;
@@ -343,7 +346,7 @@ UCTNode* UCTNode::uct_select_child(int color, bool is_root) {
         const auto psa = child.get_policy();
         const auto childvisits = child.get_visits();
         const auto denom = std::pow(1.0 + childvisits, 1.5);
-        const auto puct = cfg_puct * psa * (numerator / denom);
+        const auto puct = cfg_puct * stddev_scaling * psa * (numerator / denom);
         const auto value = eval + puct;
         assert(value > std::numeric_limits<double>::lowest());
 
