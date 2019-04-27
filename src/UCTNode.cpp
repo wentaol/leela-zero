@@ -267,7 +267,9 @@ float UCTNode::get_raw_eval(int tomove, int virtual_loss) const {
     auto blackeval = get_blackevals();
     if (tomove == FastBoard::WHITE) {
         blackeval += static_cast<double>(virtual_loss);
-    }
+    } else {
+        blackeval -= static_cast<double>(virtual_loss);
+    }    
     auto eval = static_cast<float>(blackeval / double(visits));
     if (tomove == FastBoard::WHITE) {
         eval = -eval;
