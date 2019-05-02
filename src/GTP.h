@@ -109,6 +109,7 @@ extern precision_t cfg_precision;
 #endif
 #endif
 extern float cfg_puct;
+extern float cfg_min_stddev;
 extern float cfg_softmax_temp;
 extern float cfg_fpu_reduction;
 extern float cfg_fpu_root_reduction;

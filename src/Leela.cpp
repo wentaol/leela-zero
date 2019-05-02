@@ -199,6 +199,7 @@ static void parse_commandline(int argc, char *argv[]) {
     po::options_description tuner_desc("Tuning options");
     tuner_desc.add_options()
         ("puct", po::value<float>())
+        ("cfg_min_stddev", po::value<float>())
         ("softmax_temp", po::value<float>())
         ("fpu_reduction", po::value<float>())
         ("ci_alpha", po::value<float>())
@@ -269,6 +270,9 @@ static void parse_commandline(int argc, char *argv[]) {
 #ifdef USE_TUNER
     if (vm.count("puct")) {
         cfg_puct = vm["puct"].as<float>();
+    }
+    if (vm.count("min_stddev")) {
+        cfg_min_stddev = vm["min_stddev"].as<float>();
     }
     if (vm.count("softmax_temp")) {
         cfg_softmax_temp = vm["softmax_temp"].as<float>();
