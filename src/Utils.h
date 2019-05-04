@@ -72,6 +72,7 @@ namespace Utils {
     float cached_t_quantile(int v);
 
     float erfinv_approx(float x);
+    float fast_invsqrt(float x);
 }
 
 #endif
