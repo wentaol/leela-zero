@@ -313,8 +313,9 @@ UCTNode* UCTNode::uct_select_child(int color, bool is_root) {
             }
         }
     }
-
-    const auto numerator = parentvisits;
+    const auto ag_scaling = cfg_puct *
+        std::log((parentvisits + cfg_puct_base + 1) / cfg_puct_base);
+    const auto numerator = parentvisits * ag_scaling;
     const auto policyratio = (max_policy - max_unvisited_policy)
                             / (max_policy + max_unvisited_policy);
     const auto fpu_reduction = (is_root ? cfg_fpu_root_reduction : cfg_fpu_reduction)
@@ -342,8 +343,7 @@ UCTNode* UCTNode::uct_select_child(int color, bool is_root) {
         const auto childvisits = child.get_visits();
         const auto denom = 1.0 + childvisits;
         const auto puct = psa * (numerator / denom)
-                        * (cfg_puct * Utils::fast_invsqrt(denom));
-
+                        * Utils::fast_invsqrt(denom);
         const auto value = winrate + puct;
         assert(value > std::numeric_limits<double>::lowest());
 
