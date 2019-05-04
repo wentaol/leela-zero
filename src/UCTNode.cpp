@@ -314,7 +314,7 @@ UCTNode* UCTNode::uct_select_child(int color, bool is_root) {
         }
     }
     const auto ag_scaling = cfg_puct *
-        std::log((parentvisits + cfg_puct_base + 1) / cfg_puct_base);
+        (std::log((parentvisits + cfg_puct_base + 1) / cfg_puct_base) + 1);
     const auto numerator = parentvisits * ag_scaling;
     const auto policyratio = (max_policy - max_unvisited_policy)
                             / (max_policy + max_unvisited_policy);
