@@ -340,7 +340,7 @@ void GTP::setup_default_parameters() {
 #endif
 #endif
     cfg_puct = 0.14f;
-    cfg_puct_base = 1000.0f;
+    cfg_puct_base = 10000.0f;
     cfg_softmax_temp = 1.0f;
     cfg_fpu_reduction = 0.3f;
     // see UCTSearch::should_resign
