@@ -314,7 +314,8 @@ UCTNode* UCTNode::uct_select_child(int color, bool is_root) {
         }
     }
 
-    const auto numerator = parentvisits * std::sqrt(std::log(parentvisits + M_E));
+    const auto numerator = parentvisits
+        * std::sqrt(std::log(cfg_logpuct * parentvisits + M_E));
     const auto policyratio = (max_policy - max_unvisited_policy)
                             / (max_policy + max_unvisited_policy);
     const auto fpu_reduction = (is_root ? cfg_fpu_root_reduction : cfg_fpu_reduction)
