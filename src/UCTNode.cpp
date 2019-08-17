@@ -319,8 +319,13 @@ UCTNode* UCTNode::uct_select_child(int color, bool is_root) {
                             / (max_policy + max_unvisited_policy);
     const auto fpu_reduction = (is_root ? cfg_fpu_root_reduction : cfg_fpu_reduction)
                                 * Utils::erfinv_approx(policyratio);
-    // Estimated eval for unknown nodes = original parent NN eval - reduction
-    const auto fpu_eval = get_raw_eval(color) - fpu_reduction;
+    // Estimated eval for unknown nodes = parent eval - reduction
+    float fpu_eval;
+    if (parentvisits > 1)
+        fpu_eval = get_raw_eval(color) - fpu_reduction;
+    else
+        fpu_eval = get_net_eval(color) - fpu_reduction;
+
 
     auto best = static_cast<UCTNodePointer*>(nullptr);
     auto best_value = std::numeric_limits<double>::lowest();
