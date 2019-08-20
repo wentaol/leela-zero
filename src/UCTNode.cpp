@@ -26,7 +26,7 @@
     this Program grant you additional permission to convey the resulting
     work.
 */
-
+#define _USE_MATH_DEFINES // for visual studio
 #include "config.h"
 
 #include <cassert>
